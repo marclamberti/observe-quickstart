@@ -1,0 +1,13 @@
+.git
+.env
+.DS_Store
+airflow_settings.yaml
+__pycache__/
+astro
+.venv
+airflow-webserver.pid
+webserver_config.py
+airflow.cfg
+airflow.db
+include/air_quality_data.csv
+include/astro_observe_sdk-0.0.7-py3-none-any.whl
