@@ -23,7 +23,7 @@ t_log = logging.getLogger("airflow.task")
         "delay_aq_fetch": Param(
             False,
             type="boolean",
-            description="Whether to fail the API call to the weather sensor",
+            description="Whether to delay the API call to fetch the air quality data by 61 minutes",
         ),
     },
 )
@@ -40,6 +40,8 @@ def send_aq_alerts():
         """
         import csv
         import time
+        import os
+        from airflow.exceptions import AirflowSkipException
 
         delay_aq_fetch = context["params"]["delay_aq_fetch"]
         if delay_aq_fetch:
@@ -53,6 +55,9 @@ def send_aq_alerts():
         cutoff_time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S%z") - timedelta(
             minutes=10
         )
+
+        if os.path.isfile("include/aq_data.csv") is False:
+            raise AirflowSkipException("No air quality data available")
 
         with open("include/aq_data.csv", "r") as file:
             reader = csv.DictReader(file)
