@@ -4,11 +4,11 @@ import logging
 t_log = logging.getLogger("airflow.task")
 
 
-def get_data_from_air_quality_sensor(
+def get_data_from_aq_sensor(
     sensor_id: str,
     timestamp: str,
     simulate_api_delay: bool,
-    include_random_sensor_failures: bool,
+    include_random_sensor_failures: bool = True,
 ) -> dict:
     """
     Mocks fetching data from an air quality sensor.
@@ -40,7 +40,7 @@ def get_data_from_air_quality_sensor(
 
     return {
         "sensor_id": sensor_id,
-        "air_quality": {"pm2_5": pm2_5, "pm10": pm10},
+        "aq": {"pm2_5": pm2_5, "pm10": pm10},
         "timestamp": timestamp,
         "status": 200,
         "fetch_time": 0.05,

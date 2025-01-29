@@ -1,10 +1,12 @@
-from airflow.decorators import dag, task
-from datetime import datetime, timedelta
-from airflow.models.param import Param
-from airflow.models.dataset import Dataset
-# import astro_observe_sdk as observe
+"""DAG that an ETL pipeline for air quality data once per minute."""
 
-from include.utils import get_data_from_air_quality_sensor
+from datetime import datetime, timedelta
+
+from airflow.decorators import dag, task
+from airflow.models.dataset import Dataset
+from airflow.models.param import Param
+
+from include.utils import get_data_from_aq_sensor
 
 
 @dag(
@@ -12,6 +14,7 @@ from include.utils import get_data_from_air_quality_sensor
     schedule="* * * * *",
     max_active_runs=1,
     catchup=False,
+    doc_md=__doc__,
     params={
         "sensor_id": Param(
             1, type="integer", description="The id of the sensor to be accessed"
@@ -21,14 +24,9 @@ from include.utils import get_data_from_air_quality_sensor
             type="boolean",
             description="Whether to fail the API call to the weather sensor",
         ),
-        "include_random_sensor_failures": Param(
-            True,
-            type="boolean",
-            description="Whether to include random sensor failures in 10% of the cases",
-        ),
     },
 )
-def air_quality_etl():
+def aq_etl():
 
     @task
     def get_aq_data(**context):
@@ -41,9 +39,6 @@ def air_quality_etl():
         """
         sensor_id = context["params"]["sensor_id"]
         simulate_api_delay = context["params"]["simulate_api_delay"]
-        include_random_sensor_failures = context["params"][
-            "include_random_sensor_failures"
-        ]
 
         # ts is the timestamp that marks the start of this DAG run's data interval
         # (when the previous DAG run happened)
@@ -55,11 +50,10 @@ def air_quality_etl():
         )
         timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S%z")
 
-        aq_data = get_data_from_air_quality_sensor(
+        aq_data = get_data_from_aq_sensor(
             sensor_id=sensor_id,
             timestamp=timestamp,
             simulate_api_delay=simulate_api_delay,
-            include_random_sensor_failures=include_random_sensor_failures,
         )
 
         return aq_data
@@ -73,8 +67,8 @@ def air_quality_etl():
         Returns:
             dict: The transformed air quality data.
         """
-        pm2_5 = aq_data["air_quality"]["pm2_5"]
-        pm10 = aq_data["air_quality"]["pm10"]
+        pm2_5 = aq_data["aq"]["pm2_5"]
+        pm10 = aq_data["aq"]["pm10"]
         timestamp = aq_data["timestamp"]
         sensor_id = aq_data["sensor_id"]
 
@@ -85,7 +79,7 @@ def air_quality_etl():
             "timestamp": timestamp,
         }
 
-    @task(outlets=[Dataset("air_quality_data")])
+    @task(outlets=[Dataset("aq_data")])
     def load_aq_data(aq_data: dict):
         """
         Loads the transformed air quality data into a local CSV file.
@@ -95,23 +89,16 @@ def air_quality_etl():
         """
         import os
 
-        if not os.path.exists("include/air_quality_data.csv"):
-            with open("include/air_quality_data.csv", "a") as f:
+        if not os.path.exists("include/aq_data.csv"):
+            with open("include/aq_data.csv", "a") as f:
                 f.write("sensor_id,pm2_5,pm10,timestamp\n")
 
-        with open("include/air_quality_data.csv", "a") as f:
+        with open("include/aq_data.csv", "a") as f:
             f.write(
                 f"{aq_data['sensor_id']},{aq_data['pm2_5']},{aq_data['pm10']},{aq_data['timestamp']}\n"
             )
 
-        # observe.log_metric(
-        #     name="pm_2.5",
-        #     value=aq_data["pm2_5"],
-        #     asset_id="air_quality_data",
-        #     timestamp=aq_data["timestamp"],
-        # )
-
     load_aq_data(transform_aq_data(get_aq_data()))
 
 
-air_quality_etl()
+aq_etl()

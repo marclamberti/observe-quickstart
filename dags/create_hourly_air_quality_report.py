@@ -1,8 +1,12 @@
-from airflow.decorators import dag, task
-from datetime import datetime, timedelta
-from airflow.models.param import Param
+"""DAG that creates an hourly air quality report containing the 
+average PM2.5 and PM10 values for each hour of the last day."""
+
 import logging
+from datetime import datetime, timedelta
+
+from airflow.decorators import dag, task
 from airflow.models.dataset import Dataset
+from airflow.models.param import Param
 
 # get the airflow.task logger
 t_log = logging.getLogger("airflow.task")
@@ -13,18 +17,19 @@ t_log = logging.getLogger("airflow.task")
     schedule="0 * * * *",  # runs every hour
     max_active_runs=1,
     catchup=False,
+    doc_md=__doc__,
     params={
-        "delay_air_quality_fetch": Param(
+        "delay_aq_fetch": Param(
             False,
             type="boolean",
             description="Whether to fail the API call to the weather sensor",
         ),
     },
 )
-def create_air_quality_report():
+def create_aq_report():
 
-    @task(inlets=[Dataset("air_quality_data")])
-    def get_air_quality_data_last_day(**context):
+    @task(inlets=[Dataset("aq_data")])
+    def get_aq_data_last_day(**context):
         """
         Fetches the latest air quality data from the csv file.
         Returns:
@@ -33,8 +38,8 @@ def create_air_quality_report():
         import csv
         import time
 
-        delay_air_quality_fetch = context["params"]["delay_air_quality_fetch"]
-        if delay_air_quality_fetch:
+        delay_aq_fetch = context["params"]["delay_aq_fetch"]
+        if delay_aq_fetch:
             time.sleep(60 * 61)
 
         # ts is the timestamp that marks the start of this DAG run's data interval
@@ -46,7 +51,7 @@ def create_air_quality_report():
             hours=23
         )
 
-        with open("include/air_quality_data.csv", "r") as file:
+        with open("include/aq_data.csv", "r") as file:
             reader = csv.DictReader(file)
             data = list(reader)
 
@@ -60,7 +65,7 @@ def create_air_quality_report():
         return last_day_aq_data
 
     @task
-    def caluclate_avg_air_quality_per_hour(last_day_aq_data: dict, **context) -> dict:
+    def caluclate_avg_aq_per_hour(last_day_aq_data: dict, **context) -> dict:
         """
         Calculates the average air quality values per hour in the last day.
         """
@@ -69,7 +74,7 @@ def create_air_quality_report():
         current_hour = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S%z").hour
         last_24_hours = [(current_hour - i) % 24 for i in range(24)]
 
-        avg_air_quality_per_hour = {}
+        avg_aq_per_hour = {}
 
         for hour in last_24_hours:
             data_for_hour = [
@@ -92,32 +97,30 @@ def create_air_quality_report():
             else:
                 avg_pm10 = "NO DATA"
 
-            avg_air_quality_per_hour[str(hour)] = {
+            avg_aq_per_hour[str(hour)] = {
                 "avg_pm2_5": avg_pm2_5,
                 "avg_pm10": avg_pm10,
             }
 
-        return avg_air_quality_per_hour
+        return avg_aq_per_hour
 
     @task(
-        outlets=[Dataset("air_quality_report")],
+        outlets=[Dataset("aq_report")],
     )
-    def send_air_quality_report(avg_air_quality_per_hour: dict, **context):
+    def send_aq_report(avg_aq_per_hour: dict, **context):
         """
         Mocks sending the air quality report to the team.
         """
         day = context["ts"].split("T")[0]
 
-        for entry in avg_air_quality_per_hour:
+        for entry in avg_aq_per_hour:
             t_log.info(
-                f"Day {day} Hour {entry}: PM2.5: {avg_air_quality_per_hour[entry]['avg_pm2_5']}, PM10: {avg_air_quality_per_hour[entry]['avg_pm10']}"
+                f"Day {day} Hour {entry}: PM2.5: {avg_aq_per_hour[entry]['avg_pm2_5']}, PM10: {avg_aq_per_hour[entry]['avg_pm10']}"
             )
 
-    _get_air_quality_data_last_week = get_air_quality_data_last_day()
-    _caluclate_avg_air_quality_per_hour = caluclate_avg_air_quality_per_hour(
-        _get_air_quality_data_last_week
-    )
-    send_air_quality_report(_caluclate_avg_air_quality_per_hour)
+    _get_aq_data_last_week = get_aq_data_last_day()
+    _caluclate_avg_aq_per_hour = caluclate_avg_aq_per_hour(_get_aq_data_last_week)
+    send_aq_report(_caluclate_avg_aq_per_hour)
 
 
-create_air_quality_report()
+create_aq_report()
