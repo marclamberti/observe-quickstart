@@ -23,10 +23,9 @@ def get_data_from_aq_sensor(
     import time
 
     if simulate_api_delay:
-        while True:
-            t_log.error(f"Failed to get data from sensor: {sensor_id}")
-            t_log.info("Retrying in 5 minutes")
-            time.sleep(300)
+        t_log.error(f"Failed to get data from sensor: {sensor_id}")
+        t_log.info("Retrying...")
+        time.sleep(60*60*2)
 
     if include_random_sensor_failures and random.random() < 0.1:
         t_log.error(f"Failed to get data from sensor: {sensor_id}")

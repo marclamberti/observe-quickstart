@@ -1,4 +1,4 @@
-"""DAG that an ETL pipeline for air quality data once per minute."""
+"""DAG that runs an ETL pipeline for air quality data once per minute."""
 
 from datetime import datetime, timedelta
 
